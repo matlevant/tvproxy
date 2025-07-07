@@ -1,24 +1,38 @@
-# Dockerfile per TVProxy - Server Proxy con Gunicorn
+# Dockerfile per TVProxy - Server Proxy con Gunicorn (Multi-stage build)
 
-# 1. Usa l'immagine base ufficiale di Python 3.12 slim
+# Stage 1: Build stage
+FROM python:3.12-slim as builder
+
+# Installa dipendenze di sistema per build
+RUN apt-get update && apt-get install -y \
+    gcc \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copia requirements e installa dipendenze
+COPY requirements.txt .
+RUN pip install --upgrade pip
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Stage 2: Runtime stage
 FROM python:3.12-slim
 
-# 2. Installa git e certificati SSL (per clonare da GitHub e HTTPS)
+# Installa solo le dipendenze runtime necessarie
 RUN apt-get update && apt-get install -y \
     git \
     ca-certificates \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# 3. Imposta la directory di lavoro
+# Copia le dipendenze Python dalla build stage
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+# Imposta la directory di lavoro
 WORKDIR /app
 
-# 4. Copia il codice dell'applicazione
+# Copia il codice dell'applicazione
 COPY . .
-
-# 6. Aggiorna pip e installa le dipendenze senza cache
-RUN pip install --upgrade pip
-RUN pip install --no-cache-dir -r requirements.txt
 
 # 7. Espone la porta 7860 per Gunicorn
 EXPOSE 7860
